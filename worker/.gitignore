@@ -8,3 +8,5 @@ wrangler.json
 *.sqlite
 *.sqlite3
 *.db
+
+preview/

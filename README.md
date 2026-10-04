@@ -1,6 +1,6 @@
 # Ак Барс · Шоу-программа
 
-## Рабочая версия V33.3
+## Рабочая версия V34
 
 Код существующего Cloudflare Worker, тесты и инструкция публикации находятся в [worker/](worker/README.md). Исходник: [worker/src/worker.js](worker/src/worker.js). GitHub хранит код; рабочее приложение с D1 публикуется на Cloudflare.
 
