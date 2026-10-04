@@ -62,9 +62,19 @@ function rows(){return db.prepare('SELECT * FROM events WHERE deleted_at IS NULL
  // Inspect actual client functions against persisted event/approved calculation state.
  const html=await (await c.worker.fetch(new Request('https://example.test/'),{})).text();
  for(const m of html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script\s*>/gi))if(m[1].trim())new vm.Script(m[1]);
+ // Legacy calculations may contain the catalog fallback team instead of the event category.
+ const otherId=rows().find(x=>x.event_type==='event').id;
+ db.prepare(calcSQL).run('legacy-other','draft:'+otherId,'Other');
+ db.prepare("UPDATE calculations SET team='ak-bars' WHERE id='legacy-other'").run();
+ c.otherId=otherId;
+ assert.equal(await vm.runInContext("teamForCalculationEvent(env,'draft:'+otherId)",c),'');
+ assert.equal(await vm.runInContext("teamForCalculationEvent(env,otherId)",c),'');
+ c.matchId=matchId;
+ assert.equal(await vm.runInContext("teamForCalculationEvent(env,'draft:'+matchId)",c),'ak-bars');
  const workspace=await vm.runInContext('loadSharedWorkspace(env)',c);assert.equal(workspace.events.find(e=>e.id===matchId).revision,2);
+ assert.equal(workspace.calculations.find(x=>x.id==='legacy-other').team,'');
  const ui=vm.createContext({state:{drafts:workspace.events,matches:[],requests:workspace.calculations}});
- const functions=['exportEventForCalculation','approvedCalculationsByMatch','matchMonthKey'];
+ const functions=['calculationTeam','exportEventForCalculation','approvedCalculationsByMatch','matchMonthKey'];
  for(const name of functions){const lines=html.split('\n'),start=lines.findIndex(l=>new RegExp('^    function '+name+'\\(').test(l));let end=start;if(!lines[start].endsWith('}')){end++;while(!/^    }/.test(lines[end]))end++}vm.runInContext(lines.slice(start,end+1).join('\n'),ui)}
  assert.equal(Object.keys(vm.runInContext("approvedCalculationsByMatch('ak-bars','2026-10')",ui)).length,0);
  assert.equal(Object.keys(vm.runInContext("approvedCalculationsByMatch('ak-bars','2026-11')",ui)).length,1);

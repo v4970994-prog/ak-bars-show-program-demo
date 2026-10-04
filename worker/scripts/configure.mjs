@@ -12,6 +12,7 @@ const config = {
   main: 'src/worker.js',
   compatibility_date: '2026-10-04',
   keep_vars: true,
+  secrets: { required: ['TELEGRAM_BOT_TOKEN', 'MAX_BOT_TOKEN'] },
   d1_databases: [{ binding: 'DB', database_name: name, database_id: id }]
 };
 writeFileSync(fileURLToPath(new URL('../wrangler.json', import.meta.url)), JSON.stringify(config, null, 2) + '\n');

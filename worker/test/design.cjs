@@ -12,7 +12,7 @@ vm.runInContext(fs.readFileSync(__dirname+'/../src/worker.js','utf8').replace('e
  let events=[{id:'match',type:'match',team:'ak-bars',title:'Ак Барс - Соперник',place:'Татнефть Арена',address:'Казань',date:'2026-10-10T19:00',createdBy:'vil',revision:1},{id:'event',type:'event',title:'Урок хоккея',place:'Школа № 1',address:'Казань, тестовый адрес',date:'2026-10-10T10:00',contact:'Контакт площадки',phone:'+70000000000',createdBy:'vil',revision:1},{id:'nov',type:'match',team:'bars',title:'Барс - Соперник',place:'Дворец спорта',date:'2026-11-02T18:30',createdBy:'vil',revision:1}];
  const people=[{id:'manager',name:'Менеджер подрядчика',role:'contractor_manager'},{id:'artist',name:'Ответственный исполнитель',role:'performer'}];
  const services=[{id:'s1',position:'1',name:'Ведущий',category:'Чаша',unit:'усл.',price:10000,defaultQty:1,description:'Проведение программы'}];
- const calculations=[{id:'calc',event:'draft:event',eventTitle:'Урок хоккея',createdBy:'vil',createdByName:'Виль',status:'approved',total:10000,version:1,items:[{...services[0],qty:1,total:10000}],history:[]}];
+ const calculations=[{id:'calc',event:'draft:event',team:'ak-bars',eventTitle:'Урок хоккея',createdBy:'vil',createdByName:'Виль',status:'approved',total:10000,version:1,items:[{...services[0],qty:1,total:10000}],history:[]}];
  const base={ok:true,activeSeason:{id:'season',code:'26/27'},services,servicesByTeam:{'ak-bars':services},calculations,catalogs:[],standardEstimates:[],contractorPeople:people};
  await page.route('**/*',async route=>{const url=new URL(route.request().url()),p=url.pathname;let payload={};try{payload=route.request().postDataJSON()||{}}catch{}
   if(p==='/')return route.fulfill({contentType:'text/html',body:html});
@@ -33,6 +33,11 @@ vm.runInContext(fs.readFileSync(__dirname+'/../src/worker.js','utf8').replace('e
  await page.waitForTimeout(260);await page.screenshot({path:path.join(output,'calendar-desktop.png')});
  await page.locator('.assign-event[data-id="event"]').click();await page.locator('#responsibleSelect').selectOption('artist');await page.waitForTimeout(260);await page.screenshot({path:path.join(output,'responsible-desktop.png')});await page.locator('#responsibleEditor button[type=submit]').click();await page.locator('#responsibleEditor').waitFor({state:'detached'});assert.equal(writes[0].expectedRevision,1);assert.equal(writes[0].responsibleId,'artist');await page.waitForFunction(()=>document.getElementById('eventManagementStatus').textContent.includes('назначен'));
  await page.locator('.event-calculations[data-id="event"]').click();assert.equal(await page.locator('#requests .calculation-card').count(),1);await page.locator('#requests .view-request').click();assert.ok((await page.locator('#requestDetailsBody').textContent()).includes('Ведущий'));await page.locator('#closeRequestDetails').click();
+ // Old calculation team must not make other events appear under Ak Bars.
+ await page.locator('#clearEventCalculationFilter').click();
+ await page.locator('#requestsEventTypeFilter').selectOption('other');assert.equal(await page.locator('#requests .calculation-card').count(),1);
+ await page.locator('#requestsEventTypeFilter').selectOption('ak-bars');assert.equal(await page.locator('#requests .calculation-card').count(),0);
+ await page.locator('#requestsEventTypeFilter').selectOption('all');
  await page.evaluate(()=>window.testUI.go('home'));
  await page.setViewportSize({width:390,height:844});await page.waitForTimeout(250);await page.waitForTimeout(260);await page.screenshot({path:path.join(output,'mobile-light.png')});
  for(const section of ['home','events','requests','profile','new-event','add-service','specs']){await page.evaluate(id=>window.testUI.go(id),section);assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'No overflow: '+section)}
@@ -42,6 +47,16 @@ vm.runInContext(fs.readFileSync(__dirname+'/../src/worker.js','utf8').replace('e
  await page.setViewportSize({width:320,height:700});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'No 320px overflow');
  // Deep link from notifications opens matching event, including its month.
  await page.setViewportSize({width:1440,height:1000});await page.goto('https://local.test/?event=nov');await page.locator('#events.active').waitFor();assert.ok((await page.locator('.event-calendar-toolbar').textContent()).includes('ноябрь'));
+ // Home summary, category -> event -> calculation details, mobile and role visibility.
+ await page.evaluate(()=>{window.testUI.state.drafts.find(e=>e.id==='event').date='2026-09-01T10:00';window.testUI.go('home')});
+ await page.locator('#openSpentSummary').click();await page.locator('[data-spent-filter="other"]').click();
+ assert.equal(await page.locator('.spent-events>details').count(),1);await page.locator('.spent-events>details>summary').click();
+ await page.locator('#spentDialog .view-request').click();assert.ok((await page.locator('#requestDetailsBody').textContent()).includes('Ведущий'));
+ await page.locator('#closeRequestDetails').click();await page.setViewportSize({width:390,height:844});
+ assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+ await page.screenshot({path:path.join(output,'spent-summary-mobile.png')});await page.locator('#spentDialog .modal-close').click();
+ for(const role of ['owner','coordinator','executive']){await page.evaluate(role=>{window.testUI.state.user.role=role;window.testUI.go('home')},role);assert.equal(await page.locator('#spentSummary').isVisible(),true)}
+ await page.evaluate(()=>{window.testUI.state.user.role='employee';window.testUI.go('home')});assert.equal(await page.locator('#spentSummary').isVisible(),false);
  assert.deepEqual(errors,[]);console.log('PASS: real Chromium, light/dark persistence, whole-card navigation, desktop month calendar, mobile chronological list, assignment form/revision, event-specific calculation details, deep links, 320/390px overflow checks.');
  }finally{await browser.close()}
 })().catch(e=>{console.error(e);process.exitCode=1});
