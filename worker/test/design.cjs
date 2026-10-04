@@ -75,8 +75,15 @@ vm.runInContext(fs.readFileSync(__dirname+'/../src/worker.js','utf8').replace('e
  await page.evaluate(()=>{document.activeElement.blur();window.keyboardTestHeight=844;visualViewport.dispatchEvent(new Event('resize'))});await page.locator('#eventEditor .modal-close').click();await page.waitForTimeout(150);
  assert.equal(await page.evaluate(()=>document.documentElement.classList.contains('keyboard-open')),false);
  await page.evaluate(()=>{delete visualViewport.height;window.testUI.go('home')});
- await page.locator('#themeToggle').click();assert.equal(await page.evaluate(()=>document.documentElement.classList.contains('theme-changing')),true);assert.ok((await page.locator('.hero').evaluate(e=>getComputedStyle(e).transitionDuration)).includes('0.3s'));await page.waitForTimeout(420);assert.equal(await page.evaluate(()=>document.documentElement.classList.contains('theme-changing')),false);
- await page.emulateMedia({reducedMotion:'reduce'});await page.locator('#themeToggle').click();assert.equal(await page.evaluate(()=>document.documentElement.classList.contains('theme-changing')),false);
+ // Sample every frame: button text inherits the same colour, no opacity blink,
+ // and transition declarations do not change when a timer finishes.
+ const samples=await page.evaluate(async()=>{const button=document.querySelector('.action[data-go="events"]'),text=button.querySelector('b'),frames=[];document.getElementById('themeToggle').click();const start=performance.now();await new Promise(resolve=>{function sample(now){const style=getComputedStyle(button);frames.push({background:style.backgroundColor,opacity:style.opacity,color:style.color,text:getComputedStyle(text).color,transition:style.transition});if(now-start<450)requestAnimationFrame(sample);else resolve()}requestAnimationFrame(sample)});return frames});
+ assert.ok(new Set(samples.map(s=>s.background)).size>3,'Actual interpolated colours');
+ assert.ok(samples.every(s=>s.opacity==='1'&&s.color===s.text),'No independent child colour transition or opacity blink');
+ assert.equal(new Set(samples.map(s=>s.transition)).size,1,'Stable transition rules across toggle and finish');
+ assert.ok(samples[0].transition.includes('transform 0.16s'),'Press/hover transform retained');
+ assert.ok((await page.locator('.hero').evaluate(e=>getComputedStyle(e).transitionDuration)).includes('0.3s'));
+ await page.emulateMedia({reducedMotion:'reduce'});await page.locator('#themeToggle').click();assert.equal(await page.locator('.action').first().evaluate(e=>getComputedStyle(e).transitionDuration),'0s');
  assert.deepEqual(errors,[]);console.log('PASS: real Chromium, light/dark persistence, whole-card navigation, desktop month calendar, mobile chronological list, assignment form/revision, event-specific calculation details, deep links, 320/390px overflow checks, styled responsible choices, clock fields, simulated keyboard scrolling on page/modal, theme transitions and reduced motion.');
  }finally{await browser.close()}
 })().catch(e=>{console.error(e);process.exitCode=1});
