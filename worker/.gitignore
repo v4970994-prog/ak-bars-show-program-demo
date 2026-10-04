@@ -1,0 +1,10 @@
+node_modules/
+.wrangler/
+.env
+.env.*
+.dev.vars
+.dev.vars.*
+wrangler.json
+*.sqlite
+*.sqlite3
+*.db
