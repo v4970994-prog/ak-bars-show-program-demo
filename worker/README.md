@@ -49,3 +49,5 @@ npm test
 - https://developers.cloudflare.com/workers/ci-cd/builds/
 - https://developers.cloudflare.com/workers/ci-cd/builds/configuration/
 - https://developers.cloudflare.com/workers/wrangler/configuration/
+
+Важно: настройки Builds нужно сохранить до следующего push. Для этого приложения корневая папка сборки — `/worker`; публикация из корня репозитория может развернуть статическое демо вместо рабочего приложения.
