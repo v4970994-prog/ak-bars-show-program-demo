@@ -3,7 +3,7 @@ const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict'),{ch
 const c=vm.createContext({URL,Request,Response,TextEncoder,TextDecoder,console});
 vm.runInContext(fs.readFileSync(__dirname+'/../src/worker.js','utf8').replace('export default {','globalThis.worker={'),c);
 (async()=>{
- let html=await(await c.worker.fetch(new Request('https://local.test/'),{})).text();html=html.replace('    init();','    window.testUI={state,go,renderMatches};init();');
+ let html=await(await c.worker.fetch(new Request('https://local.test/'),{})).text();html=html.replace('    init();','    window.testUI={state,go,renderMatches,openEventEditor};init();');
  const executable=process.env.CHROMIUM_EXECUTABLE;
  const browser=await chromium.launch({headless:true,...(executable?{executablePath:executable}:{}),args:['--no-sandbox','--disable-gpu','--disable-software-rasterizer']});
  const output=process.env.UI_SCREENSHOTS||path.join(__dirname,'../preview');fs.mkdirSync(output,{recursive:true});
@@ -31,7 +31,7 @@ vm.runInContext(fs.readFileSync(__dirname+'/../src/worker.js','utf8').replace('e
  await page.locator('.action[data-go="events"]').click({position:{x:10,y:10}});assert.equal(await page.locator('#events').getAttribute('class'),'section active');
  assert.equal(await page.locator('.calendar-weekday').count(),7);await page.locator('[data-calendar-day="2026-10-10"]').first().click();assert.equal(await page.locator('.match').count(),2);
  await page.waitForTimeout(260);await page.screenshot({path:path.join(output,'calendar-desktop.png')});
- await page.locator('.assign-event[data-id="event"]').click();await page.locator('#responsibleSelect').selectOption('artist');await page.waitForTimeout(260);await page.screenshot({path:path.join(output,'responsible-desktop.png')});await page.locator('#responsibleEditor button[type=submit]').click();await page.locator('#responsibleEditor').waitFor({state:'detached'});assert.equal(writes[0].expectedRevision,1);assert.equal(writes[0].responsibleId,'artist');await page.waitForFunction(()=>document.getElementById('eventManagementStatus').textContent.includes('назначен'));
+ await page.locator('.assign-event[data-id="event"]').click();await page.locator('.responsible-option').filter({has:page.locator('input[value=artist]')}).click();assert.equal(await page.locator('#responsibleEditor select').count(),0);await page.waitForTimeout(260);await page.screenshot({path:path.join(output,'responsible-desktop.png')});await page.locator('#responsibleEditor button[type=submit]').click();await page.locator('#responsibleEditor').waitFor({state:'detached'});assert.equal(writes[0].expectedRevision,1);assert.equal(writes[0].responsibleId,'artist');await page.waitForFunction(()=>document.getElementById('eventManagementStatus').textContent.includes('назначен'));
  await page.locator('.event-calculations[data-id="event"]').click();assert.equal(await page.locator('#requests .calculation-card').count(),1);await page.locator('#requests .view-request').click();assert.ok((await page.locator('#requestDetailsBody').textContent()).includes('Ведущий'));await page.locator('#closeRequestDetails').click();
  // Old calculation team must not make other events appear under Ak Bars.
  await page.locator('#clearEventCalculationFilter').click();
@@ -57,6 +57,26 @@ vm.runInContext(fs.readFileSync(__dirname+'/../src/worker.js','utf8').replace('e
  await page.screenshot({path:path.join(output,'spent-summary-mobile.png')});await page.locator('#spentDialog .modal-close').click();
  for(const role of ['owner','coordinator','executive']){await page.evaluate(role=>{window.testUI.state.user.role=role;window.testUI.go('home')},role);assert.equal(await page.locator('#spentSummary').isVisible(),true)}
  await page.evaluate(()=>{window.testUI.state.user.role='employee';window.testUI.go('home')});assert.equal(await page.locator('#spentSummary').isVisible(),false);
- assert.deepEqual(errors,[]);console.log('PASS: real Chromium, light/dark persistence, whole-card navigation, desktop month calendar, mobile chronological list, assignment form/revision, event-specific calculation details, deep links, 320/390px overflow checks.');
+
+ // Real DOM scrolling with a simulated keyboard reducing VisualViewport only.
+ await page.setViewportSize({width:390,height:844});
+ await page.evaluate(()=>{window.testUI.state.user.role='owner';window.testUI.go('profile');window.keyboardTestHeight=844;Object.defineProperty(visualViewport,'height',{configurable:true,get:()=>window.keyboardTestHeight})});
+ await page.locator('#profilePhone').focus();await page.evaluate(()=>{window.keyboardTestHeight=390;visualViewport.dispatchEvent(new Event('resize'))});await page.waitForTimeout(420);
+ assert.ok(await page.evaluate(()=>document.documentElement.classList.contains('keyboard-open')));
+ assert.ok(await page.locator('#profilePhone').evaluate(e=>e.getBoundingClientRect().bottom<=370),'Page input above keyboard');
+ await page.evaluate(()=>{document.activeElement.blur();window.keyboardTestHeight=844;visualViewport.dispatchEvent(new Event('resize'));window.testUI.openEventEditor('event')});
+ await page.locator('#eventEditor .clock-fields').waitFor();assert.equal(await page.locator('#eventEditor input[type=time]').count(),0);
+ await page.locator('#eventEditor .clock-fields input').nth(0).fill('9');await page.locator('#eventEditor .clock-fields input').nth(1).fill('5');await page.locator('#eventEditor [data-field=phone]').focus();
+ assert.equal(await page.locator('#eventEditor [data-field=time]').inputValue(),'09:05');
+ await page.evaluate(()=>{window.keyboardTestHeight=390;visualViewport.dispatchEvent(new Event('resize'))});await page.waitForTimeout(420);
+ assert.ok(await page.locator('#eventEditor [data-field=phone]').evaluate(e=>e.getBoundingClientRect().bottom<=370),'Modal input above keyboard');
+ assert.ok(await page.locator('#eventEditor [data-field=phone]').evaluate(e=>e.getBoundingClientRect().top>=20));
+ await page.screenshot({path:path.join(output,'keyboard-modal-mobile.png')});
+ await page.evaluate(()=>{document.activeElement.blur();window.keyboardTestHeight=844;visualViewport.dispatchEvent(new Event('resize'))});await page.locator('#eventEditor .modal-close').click();await page.waitForTimeout(150);
+ assert.equal(await page.evaluate(()=>document.documentElement.classList.contains('keyboard-open')),false);
+ await page.evaluate(()=>{delete visualViewport.height;window.testUI.go('home')});
+ await page.locator('#themeToggle').click();assert.equal(await page.evaluate(()=>document.documentElement.classList.contains('theme-changing')),true);assert.ok((await page.locator('.hero').evaluate(e=>getComputedStyle(e).transitionDuration)).includes('0.3s'));await page.waitForTimeout(420);assert.equal(await page.evaluate(()=>document.documentElement.classList.contains('theme-changing')),false);
+ await page.emulateMedia({reducedMotion:'reduce'});await page.locator('#themeToggle').click();assert.equal(await page.evaluate(()=>document.documentElement.classList.contains('theme-changing')),false);
+ assert.deepEqual(errors,[]);console.log('PASS: real Chromium, light/dark persistence, whole-card navigation, desktop month calendar, mobile chronological list, assignment form/revision, event-specific calculation details, deep links, 320/390px overflow checks, styled responsible choices, clock fields, simulated keyboard scrolling on page/modal, theme transitions and reduced motion.');
  }finally{await browser.close()}
 })().catch(e=>{console.error(e);process.exitCode=1});
