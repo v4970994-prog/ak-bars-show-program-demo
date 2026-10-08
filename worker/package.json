@@ -1,14 +1,14 @@
 {
   "name": "ak-bars-show-program-worker",
-  "version": "34.5.0",
+  "version": "34.6.0",
   "private": true,
   "type": "module",
   "engines": {
     "node": ">=24"
   },
   "scripts": {
-    "test": "node --check src/worker.js && node test/events.cjs && node test/responsible.cjs && node test/summary.cjs",
+    "test": "node --check src/worker.js && node test/events.cjs && node test/responsible.cjs && node test/summary.cjs && node test/replies.cjs",
     "configure": "node scripts/configure.mjs",
-    "test:ui": "node test/design.cjs"
+    "test:ui": "node test/design.cjs && node test/replies-ui.cjs"
   }
 }
