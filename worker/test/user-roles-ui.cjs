@@ -48,7 +48,8 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
   await admin.waitForFunction(()=>document.querySelector('.user-card[data-user-id=employee] .pill').textContent==='Сотрудник СКП');
   assert.equal(await card.locator('.user-role-notice').count(),0);assert.equal(updates.length,1);assert.equal(updates[0].role,'employee');assert.equal(updates[0].status,undefined);assert.equal(c.sent.length,0,'Saving a role does not send an unsolicited message');
   assert.equal(db.prepare("SELECT role FROM users WHERE telegram_id='employee'").get().role,'employee');
-  await employee.reload();await employee.locator('#shell:not(.hidden)').waitFor();
+  await employee.reload();await employee.locator('#events.active').waitFor();
+  await employee.locator('.nav-btn[data-go=home]').click();
   assert.equal(await employee.locator('#home .calculation-create-control').isVisible(),true);
   await employee.locator('#home [data-go=events]').click();await employee.locator('#eventSearch').fill('Урок хоккея event');
   assert.equal(await employee.locator('.assign-event[data-id=event]').isVisible(),true);
