@@ -50,7 +50,8 @@ vm.runInContext(fs.readFileSync(__dirname+'/../src/worker.js','utf8').replace('e
  // Deep link from notifications opens matching event, including its month.
  await page.setViewportSize({width:1440,height:1000});await page.goto('https://local.test/?event=nov');await page.locator('#events.active').waitFor();assert.ok((await page.locator('.event-calendar-toolbar').textContent()).includes('ноябрь'));
  // Home summary, category -> event -> calculation details, mobile and role visibility.
- await page.evaluate(()=>{window.testUI.state.drafts.find(e=>e.id==='event').date='2026-09-01T10:00';window.testUI.go('home')});
+ events=events.map(e=>e.id==='event'?{...e,date:'2026-09-01T10:00'}:e);
+ await page.evaluate(()=>window.testUI.go('home'));await page.waitForFunction(()=>document.querySelector('#workspaceSync').dataset.status!=='loading');
  await page.locator('#openSpentSummary').click();await page.locator('[data-spent-filter="other"]').click();
  assert.equal(await page.locator('.spent-events>details').count(),1);await page.locator('.spent-events>details>summary').click();
  await page.locator('#spentDialog .view-request').click();assert.ok((await page.locator('#requestDetailsBody').textContent()).includes('Ведущий'));
