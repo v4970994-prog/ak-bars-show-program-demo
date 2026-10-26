@@ -22,6 +22,8 @@ vm.runInContext(fs.readFileSync(__dirname+'/../src/worker.js','utf8').replace('e
   if(p.startsWith('/api/'))return route.fulfill({json:{ok:true,users:[]}});
   return route.fulfill({contentType:'application/javascript',body:''});
  });
+ // Keep the calendar fixture upcoming regardless of the day CI is run.
+ await page.clock.setFixedTime(new Date('2026-10-08T12:00:00Z'));
  await page.addInitScript(()=>localStorage.setItem('akbars_web_token','test-only'));
  await page.goto('https://local.test/?browser=1');await page.locator('#shell:not(.hidden)').waitFor();await page.waitForTimeout(250);
  assert.equal(await page.evaluate(()=>getComputedStyle(document.body).fontFamily.includes('TTOcto')),false);
