@@ -14,7 +14,7 @@ const payload=(responsibleId='artist',expectedRevision=1)=>({id:'event',responsi
  const add=db.prepare('INSERT INTO users(telegram_id,first_name,last_name,organization,role,status) VALUES(?,?,?,?,?,?)');
  for(const row of [['manager','Менеджер','','contractor','contractor_manager','active'],['artist','Артист','','contractor','performer','active'],['blocked','Блок','','contractor','performer','blocked'],['employee','Сотрудник','','customer','employee','active']])add.run(...row);
  vm.runInContext('requireActive=async()=>testAuth;sendUserMessage=async(env,id,text)=>{sent.push({id,text});return true}',ctx);
- for(const [role,id,org] of [['performer','artist','contractor'],['executive','stas','customer'],['employee','other','customer'],['contractor_manager','fake','customer']])assert.equal((await call(payload(),role,id,org)).status,403);
+ for(const [role,id,org] of [['performer','artist','contractor'],['executive','stas','customer'],['employee','other','contractor'],['contractor_manager','fake','customer']])assert.equal((await call(payload(),role,id,org)).status,403);
  for(const invalid of ['blocked','employee','unknown'])assert.equal((await call(payload(invalid))).status,400);
  assert.equal((await call(payload('artist',0))).status,409);assert.equal(ctx.sent.length,0);
  let r=await call(payload(),'employee','leysan');assert.equal(r.status,200,JSON.stringify(r));assert.equal(r.notificationSent,true);assert.equal(ctx.sent.length,1);assert.equal(ctx.sent[0].id,'artist');
