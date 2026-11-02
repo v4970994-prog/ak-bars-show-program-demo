@@ -44,3 +44,4 @@ Consumes Task 1 response. Reuses `ensureExcelLibrary('exceljs')` and `saveExcelF
 - Endpoint test first failed with 404 for the absent route, then passed against the real Worker and SQLite.
 - Browser test first failed for the absent export button, then passed with a real downloaded XLSX.
 - Full `npm test` and all seven `npm run test:ui` scripts passed with Chromium. The workbook reader interprets formatted time serials as Date objects; assertions check their time values.
+- Independent code review found no Critical or Important issues. A reproduced busy-state keyboard focus escape was fixed: focus moves to the dialog close control before disabling the focused form control; regression test failed before the fix.

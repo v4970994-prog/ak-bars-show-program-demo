@@ -3,7 +3,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
  const {db,c,env,response}=await fixture(),html=await(await c.worker.fetch(new Request('https://local.test/'),env)).text();
  const executable=process.env.CHROMIUM_EXECUTABLE,browser=await chromium.launch({headless:true,...(executable?{executablePath:executable}:{}),args:['--no-sandbox','--disable-gpu','--disable-software-rasterizer']});
  const errors=[],output=process.env.UI_SCREENSHOTS||path.join(__dirname,'../preview');fs.mkdirSync(output,{recursive:true});
- let exportFailure=false;
+ let exportFailure=false,holdExport=false;const exportReleases=[];
  async function client(id){
   const page=await browser.newPage({viewport:{width:1440,height:1000},timezoneId:'America/Los_Angeles',locale:'ru-RU'});
   page.on('pageerror',e=>errors.push(e.message));
@@ -14,6 +14,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
    if(p==='/')return route.fulfill({contentType:'text/html',body:html});
    if(p==='/vendor/exceljs.min.js')return route.fulfill({contentType:'application/javascript',body:fs.readFileSync(path.join(__dirname,'../../vendor/exceljs.min.js'))});
    if(p.startsWith('/api/')){
+    if(p==='/api/events/export'&&holdExport)await new Promise(resolve=>exportReleases.push(resolve));
     if(p==='/api/events/export'&&exportFailure)return route.fulfill({status:503,json:{ok:false,error:'Не удалось получить события для выгрузки'}});
     const r=await response(p,req.postDataJSON());return route.fulfill({status:r.status,contentType:'application/json',body:await r.text()});
    }
@@ -38,6 +39,13 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
   await page.waitForTimeout(350);await page.screenshot({path:path.join(output,'events-export-desktop.png')});
   await page.setViewportSize({width:390,height:844});await page.waitForTimeout(350);await page.screenshot({path:path.join(output,'events-export-mobile.png')});
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));await page.setViewportSize({width:1440,height:1000});
+  // Disabling submit during a slow export must not let keyboard focus escape the dialog.
+  holdExport=true;await page.locator('#eventExportForm button[type=submit]').click();
+  await page.waitForFunction(()=>document.querySelector('#eventExportForm').getAttribute('aria-busy')==='true');
+  await page.keyboard.press('Tab');assert.equal(await page.locator('#eventExportDialog').evaluate(n=>n.contains(document.activeElement)),true,'busy dialog retains keyboard focus');
+  await page.keyboard.press('Escape');await page.locator('#eventExportDialog').waitFor({state:'detached'});
+  holdExport=false;exportReleases.splice(0).forEach(resolve=>resolve());
+  await page.locator('#openEventExport').click();
   const {workbook,fileName}=await download(page),sheet=workbook.getWorksheet('Мероприятия');
   assert.match(fileName,/2026-10-01_2026-10-31/);
   assert.equal(sheet.getCell('A1').value,'Календарь мероприятий');assert.match(sheet.getCell('A2').value,/26\/27/);
